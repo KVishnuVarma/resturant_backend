@@ -19,4 +19,7 @@ router.get('/available', authenticateUser, authorizeRoles('admin'), deliveryBoyC
 // Get delivery boy details
 router.get('/:id', authenticateUser, authorizeRoles('admin', 'delivery'), deliveryBoyController.getDeliveryBoyDetails);
 
+// Update delivery location
+router.post('/orders/:orderId/location', authenticateUser, authorizeRoles('delivery'), deliveryBoyController.updateLocation);
+
 module.exports = router;

@@ -1,36 +1,27 @@
 const express = require("express");
-const axios = require("axios");
-require("dotenv").config();  // This loads your .env variables
-
 const router = express.Router();
+const chatbotController = require("../controllers/chatbotController");
+const { authenticateUser, authorizeRoles } = require("../middleware/auth");
 
-router.post("/", async (req, res) => {
-  const { message } = req.body;
+// General queries
+router.post("/query", authenticateUser, chatbotController.handleQuery);
 
-  try {
-    const response = await axios.post(
-      "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1",
-      {
-        inputs: `<s>[INST] ${message} [/INST]`
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_TOKEN}`,
-          "Content-Type": "application/json"
-        },
-      }
-    );
+// Order-specific queries
+router.post("/order/:orderId/query", authenticateUser, chatbotController.handleOrderQuery);
 
-    const botReply = response.data?.[0]?.generated_text
-      ?.replace(`<s>[INST] ${message} [/INST]`, "")
-      .trim() || "Sorry, I didn't understand that.";
-
-    res.json({ reply: botReply });
-
-  } catch (error) {
-    console.error("Chatbot Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Chatbot service failed." });
+// Update menu context (admin only)
+router.post("/update-context", 
+  authenticateUser, 
+  authorizeRoles('admin'),
+  async (req, res) => {
+    try {
+      await chatbotController.updateMenuContext(req.body.menu);
+      res.json({ message: 'Chatbot context updated successfully' });
+    } catch (error) {
+      console.error('Context Update Error:', error);
+      res.status(500).json({ message: 'Failed to update chatbot context' });
+    }
   }
-});
+);
 
 module.exports = router;

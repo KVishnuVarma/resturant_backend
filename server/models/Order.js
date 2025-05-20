@@ -30,6 +30,19 @@ const OrderSchema = new mongoose.Schema({
     required: true,
     default: 'cash'
   },
+  deliveryAddress: {
+    street: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    zipCode: { type: String, required: true },
+    landmark: String
+  },
+  estimatedDeliveryTime: {
+    start: { type: Date },
+    end: { type: Date }  
+  },
+  actualDeliveryTime: { type: Date },
+  deliveryNotes: String,
   otp: { type: String, required: true },
   userFeedback: {
     rating: { type: Number, min: 1, max: 5 },

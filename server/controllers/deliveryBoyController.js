@@ -3,6 +3,7 @@
 const DeliveryBoy = require('../models/DeliveryBoy.js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const socketManager = require('../utils/socketManager');
 
 // Helper function to generate JWT token
 const generateToken = (deliveryBoy) => {
@@ -217,6 +218,51 @@ const getDeliveryBoyDetails = async (req, res) => {
   }
 };
 
+const updateLocation = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { latitude, longitude } = req.body;
+
+    // Validate location data
+    if (!latitude || !longitude) {
+      return res.status(400).json({ 
+        message: 'Location coordinates are required',
+        required: ['latitude', 'longitude']
+      });
+    }
+
+    // Find active order
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name');
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Verify delivery boy assignment
+    if (order.assignedTo._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to update this order\'s location' });
+    }
+
+    // Broadcast location update
+    socketManager.handleDeliveryLocationUpdate({
+      orderId: order._id,
+      location: { latitude, longitude },
+      deliveryBoyId: req.user._id,
+      userId: order.user._id
+    });
+
+    res.json({ 
+      message: 'Location updated successfully',
+      location: { latitude, longitude }
+    });
+  } catch (err) {
+    console.error('Error updating location:', err);
+    res.status(500).json({ message: 'Failed to update location' });
+  }
+};
+
 // Export controller functions
 module.exports = {
   createDeliveryBoy,
@@ -224,5 +270,6 @@ module.exports = {
   getAllDeliveryBoys,
   updateStatus,
   getAvailableDeliveryBoys,
-  getDeliveryBoyDetails // Added new export
+  getDeliveryBoyDetails,
+  updateLocation // Add new export
 };

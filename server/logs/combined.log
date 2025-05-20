@@ -1,0 +1,44 @@
+{"level":"info","message":"✅ MongoDB Connected","timestamp":"2025-05-20T17:14:58.928Z"}
+{"level":"info","message":"🚀 Server listening on port 5000","timestamp":"2025-05-20T17:14:58.951Z"}
+{"level":"info","message":"Environment: development","timestamp":"2025-05-20T17:14:58.953Z"}
+{"level":"info","message":"✅ MongoDB Connected","timestamp":"2025-05-20T17:15:09.327Z"}
+{"level":"info","message":"🚀 Server listening on port 5000","timestamp":"2025-05-20T17:15:09.350Z"}
+{"level":"info","message":"Environment: development","timestamp":"2025-05-20T17:15:09.351Z"}
+[2025-05-20T17:17:06.095Z] info: ✅ MongoDB Connected
+[2025-05-20T17:17:06.104Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:17:06.105Z] info: Environment: development
+[2025-05-20T17:17:24.460Z] info: ✅ MongoDB Connected
+[2025-05-20T17:17:24.476Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:17:24.476Z] info: Environment: production
+[2025-05-20T17:17:42.255Z] info: ✅ MongoDB Connected
+[2025-05-20T17:17:42.269Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:17:42.269Z] info: Environment: production
+[2025-05-20T17:18:08.917Z] info: ✅ MongoDB Connected
+[2025-05-20T17:18:08.947Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:18:08.947Z] info: Environment: production
+[2025-05-20T17:18:34.125Z] info: ✅ MongoDB Connected
+[2025-05-20T17:18:34.136Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:18:34.137Z] info: Environment: production
+[2025-05-20T17:18:56.654Z] info: ✅ MongoDB Connected
+[2025-05-20T17:18:56.671Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:18:56.672Z] info: Environment: production
+[2025-05-20T17:19:08.011Z] info: Received shutdown signal. Starting graceful shutdown...
+[2025-05-20T17:19:31.317Z] info: ✅ MongoDB Connected
+[2025-05-20T17:19:31.336Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:19:31.337Z] info: Environment: production
+[2025-05-20T17:20:21.818Z] info: ✅ MongoDB Connected
+[2025-05-20T17:20:21.829Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:20:21.830Z] info: Environment: production
+[2025-05-20T17:20:31.287Z] info: ✅ MongoDB Connected
+[2025-05-20T17:20:31.313Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:20:31.313Z] info: Environment: production
+[2025-05-20T17:22:38.381Z] info: ✅ MongoDB Connected
+[2025-05-20T17:22:38.394Z] info: 🚀 Server listening on port 5000
+[2025-05-20T17:22:38.395Z] info: Environment: production
+[2025-05-20T17:22:53.946Z] [32minfo[39m: ✅ MongoDB Connected
+[2025-05-20T17:22:53.961Z] [32minfo[39m: 🚀 Server listening on port 5000
+[2025-05-20T17:22:53.962Z] [32minfo[39m: Environment: production
+[2025-05-20T17:23:11.138Z] [32minfo[39m: ✅ MongoDB Connected Successfully
+[2025-05-20T17:23:11.158Z] [32minfo[39m: 🚀 Server listening on port 5000
+✅ MongoDB Connected Successfully
+🚀 Server listening on port 5000

@@ -7,16 +7,22 @@ const User = require("../models/User");
 
 const router = express.Router();
 
-// Register
-router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password, phone } = req.body;
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+const { authValidation } = require('../middleware/validation');
+const { authLimiter } = require('../middleware/rateLimiter');
+
+// Register with validation
+router.post("/register", 
+    authLimiter,
+    authValidation.signup,
+    async (req, res) => {
+        try {
+            const { name, email, password, phone } = req.body;
+            
+            // Check if user already exists
+            const existingUser = await User.findOne({ email: email.toLowerCase() });
+            if (existingUser) {
+                return res.status(400).json({ message: "User already exists" });
+            }
 
     // Hash password
     const hashed = await bcrypt.hash(password, 12);

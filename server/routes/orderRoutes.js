@@ -7,14 +7,29 @@ const { authenticateUser, authorizeRoles } = require('../middleware/auth');
 const DeliveryBoy = require('../models/DeliveryBoy');
 const bcrypt = require('bcryptjs');
 
-// User: Place order
-router.post('/place', authenticateUser, orderController.placeOrder);
+const { orderValidation, feedbackValidation } = require('../middleware/validation');
+const { cache } = require('../middleware/cache');
 
-// User: Get own orders
-router.get('/myorders', authenticateUser, orderController.getUserOrders);
+// User: Place order with validation
+router.post('/place', 
+    authenticateUser, 
+    orderValidation,
+    orderController.placeOrder
+);
 
-// User: Add delivery feedback
-router.post('/:orderId/feedback', authenticateUser, orderController.addDeliveryFeedback);
+// User: Get own orders with caching
+router.get('/myorders', 
+    authenticateUser,
+    cache(300), // Cache for 5 minutes
+    orderController.getUserOrders
+);
+
+// User: Add delivery feedback with validation
+router.post('/:orderId/feedback', 
+    authenticateUser,
+    feedbackValidation,
+    orderController.addDeliveryFeedback
+);
 
 // Get order summary (accessible by relevant user/delivery person)
 router.get('/summary/:orderId', authenticateUser, orderController.getOrderSummary);

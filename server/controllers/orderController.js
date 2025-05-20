@@ -6,15 +6,26 @@ const MenuItem = require('../models/MenuItem');
 const DeliveryBoy = require('../models/DeliveryBoy');
 const { generateOTP } = require('../utils/sendOtp');
 const sendSMS = require('../utils/sendSMS');
+const socketManager = require('../utils/socketManager');
 
 const orderController = {
   placeOrder: async (req, res) => {
     try {
-      const { items } = req.body;
+      const { items, deliveryAddress, deliveryNotes } = req.body;
 
       if (!items || items.length === 0) {
         return res.status(400).json({ message: 'No items in order' });
-      }      // Validate items and calculate price breakdown
+      }
+
+      if (!deliveryAddress || !deliveryAddress.street || !deliveryAddress.city || 
+          !deliveryAddress.state || !deliveryAddress.zipCode) {
+        return res.status(400).json({ 
+          message: 'Complete delivery address is required',
+          required: ['street', 'city', 'state', 'zipCode']
+        });
+      }
+
+      // Validate items and calculate price breakdown
       let subTotal = 0;
       const validatedItems = [];
       const TAX_RATE = 0.18; // 18% GST
@@ -37,14 +48,18 @@ const orderController = {
 
       // Calculate tax and total
       const tax = subTotal * TAX_RATE;
-      const totalAmount = subTotal + tax + DELIVERY_CHARGE;      // Get user's phone number for delivery
+      const totalAmount = subTotal + tax + DELIVERY_CHARGE;
+
+      // Get user's phone number for delivery
       const user = await User.findById(req.user._id);
       if (!user || !user.phone) {
         return res.status(400).json({ message: 'User phone number is required for delivery' });
       }
 
       // Generate OTP for delivery confirmation
-      const otp = generateOTP();      // Send OTP via SMS
+      const otp = generateOTP();
+
+      // Send OTP via SMS
       try {
         await sendSMS(user.phone, otp);
       } catch (err) {
@@ -57,7 +72,12 @@ const orderController = {
       // Create payment ID
       const paymentId = 'PAY-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
 
-      // Create new order with validated items and price breakdown
+      // Calculate estimated delivery time (45-60 minutes from now)
+      const now = new Date();
+      const estimatedStart = new Date(now.getTime() + 45 * 60000); // 45 minutes
+      const estimatedEnd = new Date(now.getTime() + 60 * 60000);   // 60 minutes
+
+      // Create new order
       const order = new Order({
         deliveryPhone: user.phone,
         user: req.user._id,
@@ -69,7 +89,13 @@ const orderController = {
         paymentId,
         otp,
         status: 'placed',
-        paymentMethod: req.body.paymentMethod || 'cash' // Default to cash if not specified
+        paymentMethod: req.body.paymentMethod || 'cash',
+        deliveryAddress,
+        deliveryNotes,
+        estimatedDeliveryTime: {
+          start: estimatedStart,
+          end: estimatedEnd
+        }
       });
 
       await order.save();
@@ -77,6 +103,18 @@ const orderController = {
       // Add order reference to user's orders
       await User.findByIdAndUpdate(req.user._id, { 
         $push: { orders: order._id }
+      });
+
+      // Notify admins with delivery details
+      socketManager.notifyAdmins('new_order', { 
+        orderId: order._id,
+        user: {
+          name: user.name,
+          phone: user.phone
+        },
+        deliveryAddress,
+        estimatedDelivery: order.estimatedDeliveryTime,
+        totalAmount: totalAmount
       });
 
       res.status(201).json(order);
@@ -126,6 +164,7 @@ const orderController = {
       res.status(500).json({ message: 'Failed to accept order' });
     }
   },
+
   assignDelivery: async (req, res) => {
     const { orderId } = req.params;
     const { deliveryBoyId } = req.body;
@@ -165,14 +204,31 @@ const orderController = {
         return res.status(400).json({ message: 'Delivery person is not available' });
       }
 
-      // Update order
+      // Update order and delivery boy status
       order.status = 'assigned';
       order.assignedTo = deliveryBoyId;
       await order.save();
 
-      // Update delivery boy status
       deliveryBoy.status = 'busy';
       await deliveryBoy.save();
+
+      // Notify delivery boy about new assignment
+      socketManager.notifyDeliveryBoy(deliveryBoyId, 'new_order_assigned', {
+        orderId: order._id,
+        customerName: order.user.name,
+        customerPhone: order.user.phone,
+        deliveryAddress: order.deliveryAddress,
+        items: order.items
+      });
+
+      // Notify user about delivery assignment
+      socketManager.notifyUser(order.user._id, 'delivery_assigned', {
+        orderId: order._id,
+        deliveryBoy: {
+          name: deliveryBoy.name,
+          phone: deliveryBoy.phone
+        }
+      });
 
       // Send SMS notification to user
       try {
@@ -194,9 +250,10 @@ const orderController = {
       res.status(500).json({ message: 'Failed to assign delivery' });
     }
   },
+
   deliveryUpdateStatus: async (req, res) => {
     const { orderId } = req.params;
-    const { status, otp } = req.body;
+    const { status, otp, location } = req.body;
 
     try {
       // Verify the request is from a delivery person
@@ -234,6 +291,16 @@ const orderController = {
           return res.status(400).json({ message: 'Order must be assigned before starting delivery' });
         }
         order.status = 'delivering';
+
+        // Notify user about delivery start
+        socketManager.notifyUser(order.user._id, 'delivery_started', {
+          orderId: order._id,
+          deliveryBoy: {
+            name: req.user.name,
+            phone: req.user.phone
+          },
+          location: location
+        });
       }
       else if (status === 'delivered') {
         // Verify payment status
@@ -247,7 +314,9 @@ const orderController = {
               paymentId: order.paymentId
             });
           }
-        }        // Verify OTP - check both otp and opt fields for better UX
+        }
+
+        // Verify OTP - check both otp and opt fields for better UX
         const providedOTP = otp || req.body.opt; // Handle both spellings
         if (!providedOTP || providedOTP !== order.otp) {
           return res.status(400).json({ 
@@ -256,9 +325,26 @@ const orderController = {
             expected: order.otp, // Only show in development
             provided: providedOTP
           });
-        }        // Update order status and delivery info
+        }
+
         order.status = 'delivered';
         order.deliveredAt = new Date();
+
+        // Notify user about delivery completion
+        socketManager.notifyUser(order.user._id, 'order_delivered', {
+          orderId: order._id,
+          deliveryTime: order.deliveredAt
+        });
+
+        // Notify admins about delivery completion
+        socketManager.notifyAdmins('delivery_completed', {
+          orderId: order._id,
+          deliveryBoy: {
+            id: req.user._id,
+            name: req.user.name
+          },
+          deliveryTime: order.deliveredAt
+        });
 
         // Update delivery boy's earnings and stats
         const deliveryBoy = await DeliveryBoy.findById(order.assignedTo);
@@ -285,6 +371,18 @@ const orderController = {
 
       await order.save();
 
+      // Notify all parties about status update
+      socketManager.handleOrderStatusUpdate({
+        orderId: order._id,
+        status: order.status,
+        updatedBy: {
+          userId: order.user._id,
+          role: req.user.role,
+          deliveryBoyId: req.user._id
+        },
+        location: location
+      });
+
       res.json({ 
         message: 'Order status updated successfully',
         order
@@ -294,6 +392,7 @@ const orderController = {
       res.status(500).json({ message: 'Failed to update delivery status' });
     }
   },
+
   getOrderSummary: async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -372,7 +471,9 @@ const orderController = {
 
       if (order.status !== 'delivered') {
         return res.status(400).json({ message: 'Can only add feedback to delivered orders' });
-      }      // Update order feedback
+      }
+
+      // Update order feedback
       order.userFeedback = { rating, tip, comment };
       await order.save();
 

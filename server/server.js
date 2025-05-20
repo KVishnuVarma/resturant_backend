@@ -1,12 +1,14 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const dotenv = require("dotenv");
+const helmet = require("helmet");
+const compression = require("compression");
+const morgan = require("morgan");
 const { Server } = require("socket.io");
 const http = require("http");
 
-// Load environment variables
-dotenv.config();
+const config = require("./config");
+const logger = require("./utils/logger");
 
 // Routes
 const authRoute = require("./routes/auth");
@@ -19,18 +21,63 @@ const deliveryBoyRoute = require("./routes/deliveryBoyRoutes");
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Import middleware
+const { apiLimiter, authLimiter, chatbotLimiter } = require('./middleware/rateLimiter');
 
-// Route middlewares
-app.use("/api/auth", authRoute);
-app.use("/api/chatbot", chatRoute);
-app.use("/api/menu", menuRoute);
-app.use("/api/orders", orderRoute);
-app.use("/api/reservations", reservationRoute);
-app.use("/api/payments", paymentRoute);
-app.use("/api/delivery-boys", deliveryBoyRoute);
+// Security Middleware
+// Production-grade security middleware
+app.use(helmet({
+  contentSecurityPolicy: true,
+  crossOriginEmbedderPolicy: true,
+  crossOriginOpenerPolicy: true,
+  crossOriginResourcePolicy: true,
+  dnsPrefetchControl: true,
+  frameguard: true,
+  hidePoweredBy: true,
+  hsts: true,
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: true,
+  referrerPolicy: true,
+  xssFilter: true
+}));
+
+// Production CORS settings
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true
+}));
+
+// Optimize response size
+app.use(compression());
+
+// Production logging
+app.use(morgan('[:date[iso]] ":method :url" :status :response-time ms - :res[content-length]', { 
+  stream: logger.stream,
+  skip: (req, res) => res.statusCode < 400 // Only log errors in production
+}));
+app.use(express.json({ limit: '10kb' })); // Body parser with size limit
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message
+  });
+});
+
+// Apply rate limiting to routes
+app.use("/api/auth", authLimiter, authRoute);
+app.use("/api/chatbot", chatbotLimiter, chatRoute);
+app.use("/api/menu", apiLimiter, menuRoute);
+app.use("/api/orders", apiLimiter, orderRoute);
+app.use("/api/reservations", apiLimiter, reservationRoute);
+app.use("/api/payments", apiLimiter, paymentRoute);
+app.use("/api/delivery-boys", apiLimiter, deliveryBoyRoute);
 
 // Root endpoint
 app.get("/", (_, res) => res.send("🚀 Real-Time Restaurant Server is running"));
@@ -38,22 +85,9 @@ app.get("/", (_, res) => res.send("🚀 Real-Time Restaurant Server is running")
 // Create HTTP Server
 const server = http.createServer(app);
 
-// Socket.IO Setup
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
-});
-
-io.on("connection", (socket) => {
-  console.log("🟢 New socket connected:", socket.id);
-
-  socket.on("send_message", (data) => {
-    socket.broadcast.emit("receive_message", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("🔴 Socket disconnected:", socket.id);
-  });
-});
+// Initialize Socket.IO Manager
+const socketManager = require('./utils/socketManager');
+socketManager.initialize(server);
 
 // Function to find an available port
 const findAvailablePort = async (startPort) => {
@@ -74,19 +108,44 @@ const findAvailablePort = async (startPort) => {
   });
 };
 
-// MongoDB + Server Boot
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(async () => {
-  console.log("✅ MongoDB Connected");
-  
-  const desiredPort = process.env.PORT || 5000;
-  const port = await findAvailablePort(desiredPort);
-  
-  server.listen(port, () => {
-    console.log(`🚀 Server listening on port ${port}`);
+// Graceful shutdown handling
+const gracefulShutdown = () => {
+  logger.info('Received shutdown signal. Starting graceful shutdown...');
+  server.close(() => {
+    logger.info('HTTP server closed.');
+    mongoose.connection.close(false, () => {
+      logger.info('MongoDB connection closed.');
+      process.exit(0);
+    });
   });
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  gracefulShutdown();
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  logger.error('Unhandled Promise Rejection:', err);
+  gracefulShutdown();
+});
+
+// MongoDB + Server Boot
+mongoose.connect(config.mongoUri)
+  .then(async () => {
+    console.log("✅ MongoDB Connected Successfully");
+    
+    const port = config.port;
+    server.listen(port, () => {
+      console.log(`🚀 Server listening on port ${port}`);
+    });
 }).catch((err) => {
   console.error("❌ MongoDB Connection Failed:", err);
+  process.exit(1);
 });
