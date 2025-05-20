@@ -372,28 +372,41 @@ const orderController = {
 
       if (order.status !== 'delivered') {
         return res.status(400).json({ message: 'Can only add feedback to delivered orders' });
-      }
+      }      // Update order feedback
+      order.userFeedback = { rating, tip, comment };
+      await order.save();
 
-      // Update order feedback
-      order.deliveryFeedback = { rating, tip, comment };
-      await order.save();      // Update delivery boy stats
+      // Update delivery boy stats
       const deliveryBoy = await DeliveryBoy.findById(order.assignedTo);
       if (deliveryBoy) {
-        const delivery = deliveryBoy.deliveries.find(d => 
-          d.order.toString() === order._id.toString()
+        // Find or create delivery record
+        let delivery = deliveryBoy.deliveries.find(d => 
+          d.order && d.order.toString() === order._id.toString()
         );
-        if (delivery) {
-          delivery.rating = rating;
-          delivery.tip = tip || 0;
-          delivery.comment = comment;
-          
-          // Update total earnings with tip
-          delivery.earnings = order.deliveryCharge + (tip || 0);
 
-          // Update statistics including ratings and earnings
-          await deliveryBoy.updateStats();
-          await deliveryBoy.save();
+        if (!delivery) {
+          delivery = {
+            order: order._id,
+            earnings: order.deliveryCharge,
+            deliveredAt: order.deliveredAt
+          };
+          deliveryBoy.deliveries.push(delivery);
         }
+
+        // Update delivery record
+        delivery.rating = rating;
+        delivery.tip = tip || 0;
+        delivery.comment = comment;
+        
+        // Base earnings (delivery charge) plus tip
+        delivery.earnings = order.deliveryCharge + (tip || 0);
+
+        // Mark the deliveries array as modified
+        deliveryBoy.markModified('deliveries');
+        
+        // Update overall statistics
+        await deliveryBoy.updateStats();
+        await deliveryBoy.save();
       }
 
       res.json({

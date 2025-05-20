@@ -16,4 +16,7 @@ router.put('/:id/status', authenticateUser, authorizeRoles('admin', 'delivery'),
 // Get available delivery boys (admin only)
 router.get('/available', authenticateUser, authorizeRoles('admin'), deliveryBoyController.getAvailableDeliveryBoys);
 
+// Get delivery boy details
+router.get('/:id', authenticateUser, authorizeRoles('admin', 'delivery'), deliveryBoyController.getDeliveryBoyDetails);
+
 module.exports = router;

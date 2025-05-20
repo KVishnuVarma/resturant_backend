@@ -40,34 +40,65 @@ deliveryBoySchema.methods.toJSON = function() {
 
 // Update statistics when a delivery is completed
 deliveryBoySchema.methods.updateStats = async function() {
-  if (this.deliveries.length > 0) {
-    // Calculate ratings
-    const ratings = this.deliveries.filter(d => d.rating).map(d => d.rating);
-    this.ratings.count = ratings.length;
-    this.ratings.total = ratings.reduce((a, b) => a + b, 0);
-    this.ratings.average = this.ratings.count > 0 ? this.ratings.total / this.ratings.count : 0;
+  try {
+    // First populate required order data
+    await this.populate('deliveries.order');
+    
+    if (this.deliveries.length > 0) {
+      // Calculate ratings
+      const ratings = this.deliveries.filter(d => d.rating).map(d => d.rating);
+      this.ratings.count = ratings.length;
+      this.ratings.total = ratings.reduce((a, b) => a + b, 0);
+      this.ratings.average = this.ratings.count > 0 ? this.ratings.total / this.ratings.count : 0;
 
-    // Calculate earnings
-    this.earnings.tips = this.deliveries.reduce((sum, del) => sum + (del.tip || 0), 0);
-    this.earnings.deliveryCharges = this.deliveries.reduce((sum, del) => sum + del.earnings, 0);
-    this.earnings.total = this.earnings.tips + this.earnings.deliveryCharges;
+      // Calculate earnings
+      let totalTips = 0;
+      let totalDeliveryCharges = 0;
 
-    // Calculate performance
-    this.performance.totalDeliveries = this.deliveries.length;
-    const onTimeDeliveries = this.deliveries.filter(d => {
-      const deliveryTime = d.deliveredAt.getTime() - d.order.createdAt.getTime();
-      return deliveryTime <= 45 * 60 * 1000; // 45 minutes
-    }).length;
-    this.performance.onTimeRate = (onTimeDeliveries / this.performance.totalDeliveries) * 100;
-    this.performance.completionRate = 100; // Can be adjusted if you track cancelled/failed deliveries
+      this.deliveries.forEach(del => {
+        totalTips += del.tip || 0;
+        totalDeliveryCharges += del.earnings || 0;
+      });
+
+      this.earnings.tips = totalTips;
+      this.earnings.deliveryCharges = totalDeliveryCharges;
+      this.earnings.total = totalTips + totalDeliveryCharges;
+
+      // Calculate performance
+      this.performance.totalDeliveries = this.deliveries.length;
+      let onTimeDeliveries = 0;
+
+      this.deliveries.forEach(del => {
+        if (del.deliveredAt && del.order?.createdAt) {
+          const deliveryTime = new Date(del.deliveredAt).getTime() - new Date(del.order.createdAt).getTime();
+          if (deliveryTime <= 45 * 60 * 1000) { // 45 minutes
+            onTimeDeliveries++;
+          }
+        }
+      });
+
+      this.performance.onTimeRate = this.performance.totalDeliveries > 0 
+        ? (onTimeDeliveries / this.performance.totalDeliveries) * 100 
+        : 0;
+      this.performance.completionRate = 100; // Can be adjusted if you track cancelled/failed deliveries
+
+      // Update availability status
+      const Order = mongoose.model('Order');
+      const hasActiveDelivery = await Order.exists({
+        assignedTo: this._id,
+        status: { $in: ['assigned', 'delivering'] }
+      });
+      this.status = hasActiveDelivery ? 'busy' : 'available';
+
+      // Mark the document as modified
+      this.markModified('earnings');
+      this.markModified('ratings');
+      this.markModified('performance');
+    }
+  } catch (err) {
+    console.error('Error updating delivery boy stats:', err);
+    throw err;
   }
-
-  // Update availability status
-  const hasActiveDelivery = await Order.exists({
-    assignedTo: this._id,
-    status: { $in: ['assigned', 'delivering'] }
-  });
-  this.status = hasActiveDelivery ? 'busy' : 'available';
 };
 
 const DeliveryBoy = mongoose.model('DeliveryBoy', deliveryBoySchema);

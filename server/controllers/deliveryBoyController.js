@@ -175,10 +175,54 @@ const getAvailableDeliveryBoys = async (req, res) => {
   }
 };
 
+const getDeliveryBoyDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find delivery boy by ID
+    const deliveryBoy = await DeliveryBoy.findById(id)
+      .select('-password') // Exclude password
+      .populate({
+        path: 'deliveries.order',
+        select: 'status totalAmount createdAt deliveredAt'
+      });
+
+    if (!deliveryBoy) {
+      return res.status(404).json({ message: 'Delivery boy not found' });
+    }
+
+    // Check authorization - only admin or the delivery boy themselves can view details
+    if (req.user.role === 'delivery' && req.user._id.toString() !== id) {
+      return res.status(403).json({ message: 'Not authorized to view other delivery boy details' });
+    }
+
+    res.json({
+      id: deliveryBoy._id,
+      name: deliveryBoy.name,
+      email: deliveryBoy.email,
+      phone: deliveryBoy.phone,
+      status: deliveryBoy.status,
+      statistics: {
+        earnings: deliveryBoy.earnings,
+        ratings: deliveryBoy.ratings,
+        performance: deliveryBoy.performance
+      },
+      recentDeliveries: deliveryBoy.deliveries
+        .sort((a, b) => b.deliveredAt - a.deliveredAt)
+        .slice(0, 10) // Get last 10 deliveries
+    });
+  } catch (err) {
+    console.error('Error fetching delivery boy details:', err);
+    res.status(500).json({ message: 'Failed to fetch delivery boy details' });
+  }
+};
+
+// Export controller functions
 module.exports = {
   createDeliveryBoy,
   loginDeliveryBoy,
   getAllDeliveryBoys,
   updateStatus,
-  getAvailableDeliveryBoys
+  getAvailableDeliveryBoys,
+  getDeliveryBoyDetails // Added new export
 };
