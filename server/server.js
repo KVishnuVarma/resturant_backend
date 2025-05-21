@@ -45,7 +45,7 @@ app.use(helmet({
 
 // Production CORS settings
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
 
@@ -109,31 +109,52 @@ const findAvailablePort = async (startPort) => {
 };
 
 // Graceful shutdown handling
-const gracefulShutdown = () => {
-  logger.info('Received shutdown signal. Starting graceful shutdown...');
-  server.close(() => {
-    logger.info('HTTP server closed.');
-    mongoose.connection.close(false, () => {
-      logger.info('MongoDB connection closed.');
-      process.exit(0);
+const gracefulShutdown = async () => {
+  try {
+    logger.info('Starting graceful shutdown...');
+    
+    // Close HTTP server
+    await new Promise((resolve) => {
+      server.close(resolve);
     });
-  });
+    logger.info('HTTP server closed.');
+    
+    // Close MongoDB connection
+    await mongoose.connection.close();
+    logger.info('MongoDB connection closed.');
+    
+    process.exit(0);
+  } catch (err) {
+    logger.error('Error during graceful shutdown:', err);
+    process.exit(1);
+  }
 };
 
 // Handle shutdown signals
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', () => {
+  gracefulShutdown().catch(err => {
+    logger.error('Error during SIGTERM shutdown:', err);
+    process.exit(1);
+  });
+});
+
+process.on('SIGINT', () => {
+  gracefulShutdown().catch(err => {
+    logger.error('Error during SIGINT shutdown:', err);
+    process.exit(1);
+  });
+});
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
-  gracefulShutdown();
+  gracefulShutdown().catch(() => process.exit(1));
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('Unhandled Promise Rejection:', err);
-  gracefulShutdown();
+  gracefulShutdown().catch(() => process.exit(1));
 });
 
 // MongoDB + Server Boot
@@ -141,10 +162,36 @@ mongoose.connect(config.mongoUri)
   .then(async () => {
     console.log("✅ MongoDB Connected Successfully");
     
-    const port = config.port;
-    server.listen(port, () => {
-      console.log(`🚀 Server listening on port ${port}`);
-    });
+    let port = config.port;
+    const maxRetries = 10;
+    let retries = 0;
+
+    const startServer = async (retryPort) => {
+      try {
+        await new Promise((resolve, reject) => {
+          const serverInstance = server.listen(retryPort, () => {
+            console.log(`🚀 Server listening on port ${retryPort}`);
+            resolve();
+          });
+
+          serverInstance.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+              serverInstance.close();
+              reject(err);
+            }
+          });
+        });
+      } catch (err) {
+        if (err.code === 'EADDRINUSE' && retries < maxRetries) {
+          retries++;
+          console.log(`Port ${retryPort} is in use, trying port ${retryPort + 1}...`);
+          return startServer(retryPort + 1);
+        }
+        throw err;
+      }
+    };
+
+    await startServer(port);
 }).catch((err) => {
   console.error("❌ MongoDB Connection Failed:", err);
   process.exit(1);

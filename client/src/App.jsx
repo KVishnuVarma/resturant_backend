@@ -1,7 +1,20 @@
-import React from 'react'
+import { BrowserRouter as Router } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { store } from './store/store';
+import MainLayout from './layouts/MainLayout';
+import Routes from './routes';
+import './index.css';
 
-export default function App() {
+function App() {
   return (
-    <div className='text-3xl font-bold underline'>App</div>
-  )
+    <Provider store={store}>
+      <Router>
+        <MainLayout>
+          <Routes />
+        </MainLayout>
+      </Router>
+    </Provider>
+  );
 }
+
+export default App;

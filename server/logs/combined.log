@@ -42,3 +42,28 @@
 [2025-05-20T17:23:11.158Z] [32minfo[39m: 🚀 Server listening on port 5000
 ✅ MongoDB Connected Successfully
 🚀 Server listening on port 5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+Uncaught Exception: listen EADDRINUSE: address already in use :::5000
+[2025-05-21T04:42:44.269Z] "GET /api/menu" 404 17.581 ms - 147
+[2025-05-21T04:42:44.290Z] "GET /api/menu" 404 1.295 ms - 147
+[2025-05-21T04:42:44.302Z] "GET /api/menu" 404 6.821 ms - 147
+[2025-05-21T04:42:44.353Z] "GET /api/menu" 404 1.328 ms - 147
+[2025-05-21T04:42:44.359Z] "GET /api/menu" 404 1.406 ms - 147
+[2025-05-21T04:42:44.367Z] "GET /api/menu" 404 2.355 ms - 147
+[2025-05-21T04:42:50.575Z] "GET /api/menu" 404 2.438 ms - 147
+[2025-05-21T04:42:50.591Z] "GET /api/menu" 404 2.853 ms - 147
+[2025-05-21T04:42:50.604Z] "GET /api/menu" 404 5.642 ms - 147
+[2025-05-21T04:42:50.780Z] "GET /api/menu" 404 3.536 ms - 147
+[2025-05-21T04:42:50.792Z] "GET /api/menu" 404 2.542 ms - 147
+[2025-05-21T04:46:19.140Z] "GET /api/menu" 404 4.316 ms - 147
+[2025-05-21T04:46:19.152Z] "GET /api/menu" 404 1.246 ms - 147
+[2025-05-21T04:46:19.673Z] "GET /api/menu" 404 1.810 ms - 147
+[2025-05-21T04:46:19.687Z] "GET /api/menu" 404 1.660 ms - 147
+[2025-05-21T04:56:51.599Z] "GET /api/menu" 404 0.540 ms - 147
+[2025-05-21T04:56:51.608Z] "GET /api/menu" 404 0.864 ms - 147
+[2025-05-21T04:56:52.131Z] "GET /api/menu" 404 1.976 ms - 147
+[2025-05-21T04:56:52.151Z] "GET /api/menu" 404 2.365 ms - 147
